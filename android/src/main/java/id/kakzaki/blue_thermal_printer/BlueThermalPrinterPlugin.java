@@ -54,7 +54,7 @@ import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
 import com.journeyapps.barcodescanner.BarcodeEncoder;
 
-public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,MethodCallHandler, RequestPermissionsResultListener {
+public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, MethodCallHandler, RequestPermissionsResultListener, BlDiscoveryCallback {
 
   private static final String TAG = "BThermalPrinterPlugin";
   private static final String NAMESPACE = "blue_thermal_printer";
@@ -62,6 +62,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
   private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
   private static ConnectedThread THREAD = null;
   private BluetoothAdapter mBluetoothAdapter;
+  private BluetoothDiscoveryManager blDscvMgr;
 
   private Result pendingResult;
 
@@ -134,6 +135,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
       readChannel.setStreamHandler(readResultsHandler);
       mBluetoothManager = (BluetoothManager) application.getSystemService(Context.BLUETOOTH_SERVICE);
       mBluetoothAdapter = mBluetoothManager.getAdapter();
+      blDscvMgr = new BluetoothDiscoveryManager(activity,mBluetoothAdapter,this);
       activityBinding.addRequestPermissionsResultListener(this);
     }
   }
@@ -141,6 +143,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
 
   private void detach() {
     Log.i(TAG, "detach");
+    blDscvMgr.dispose();
+    blDscvMgr = null;
     context = null;
     activityBinding.removeRequestPermissionsResultListener(this);
     activityBinding = null;
@@ -265,7 +269,9 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
         }
 
         break;
-
+      case "startDevicesDiscovery":
+        startDevicesDiscovery(result);
+        break;
       case "connect":
         if (arguments.containsKey("address")) {
           String address = (String) arguments.get("address");
@@ -408,8 +414,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
         pendingResult = null;
       }
       return true;
-    }
-    return false;
+    } else return requestCode == BluetoothDiscoveryManager.REQ_BL_PERMISSIONS;
   }
 
   private void state(Result result) {
@@ -454,6 +459,34 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware,Me
     result.success(list);
   }
 
+  private void startDevicesDiscovery(Result result) {
+    pendingResult = result;
+    blDscvMgr.startDiscovery();
+  }
+
+  /**
+   * @param discoveryResult discoveryResult
+   */
+  @Override
+  public void onDiscoveryFinish(BlDiscoveryResult discoveryResult) {
+    if(discoveryResult.status == BlDiscoveryStatus.failed){
+      pendingResult.error("discovery_error", discoveryResult.errMsg, null);
+    } else if(discoveryResult.status == BlDiscoveryStatus.permissionFailed){
+      pendingResult.error("no_permissions", discoveryResult.errMsg, null);
+    } else if(discoveryResult.status == BlDiscoveryStatus.success) {
+      List<Map<String, Object>> resultList = new ArrayList<>();
+      if(discoveryResult.deviceList != null){
+        for (BluetoothDevice device : discoveryResult.deviceList) {
+          Map<String, Object> deviceData = new HashMap<>();
+          deviceData.put("address", device.getAddress());
+          deviceData.put("name", device.getName());
+          deviceData.put("type", device.getType());
+          resultList.add(deviceData);
+        }
+        pendingResult.success(resultList);
+      }
+    }
+  }
 
   /**
    * @param result  result

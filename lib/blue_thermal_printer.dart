@@ -38,7 +38,7 @@ class BlueThermalPrinter {
     });
   }
 
-  static BlueThermalPrinter _instance = new BlueThermalPrinter._();
+  static BlueThermalPrinter _instance = BlueThermalPrinter._();
 
   static BlueThermalPrinter get instance => _instance;
 
@@ -67,6 +67,12 @@ class BlueThermalPrinter {
   ///getBondedDevices()
   Future<List<BluetoothDevice>> getBondedDevices() async {
     final List list = await (_channel.invokeMethod('getBondedDevices'));
+    return list.map((map) => BluetoothDevice.fromMap(map)).toList();
+  }
+
+  ///start discover new bluetooth devices
+  Future<List<BluetoothDevice>> startDevicesDiscovery() async {
+    final List list = await (_channel.invokeMethod('startDevicesDiscovery'));
     return list.map((map) => BluetoothDevice.fromMap(map)).toList();
   }
 
