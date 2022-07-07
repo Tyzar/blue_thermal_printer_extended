@@ -143,6 +143,14 @@ public class BluetoothDiscoveryManager {
             } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (device != null) {
+                    String address = device.getAddress();
+                    for (int i = 0; i < discoveredDevices.size(); i++) {
+                        if (address.equals(discoveredDevices
+                                .get(i).getAddress())) {
+                            return;
+                        }
+                    }
+
                     discoveredDevices.add(device);
                 }
             }
