@@ -27,6 +27,9 @@ class BlueThermalPrinter {
   static const EventChannel _stateChannel =
       const EventChannel('$namespace/state');
 
+  static const EventChannel _deviceDiscoveryChannel =
+      const EventChannel('$namespace/discovery');
+
   final StreamController<MethodCall> _methodStreamController =
       new StreamController.broadcast();
 
@@ -71,9 +74,22 @@ class BlueThermalPrinter {
   }
 
   ///start discover new bluetooth devices
-  Future<List<BluetoothDevice>> startDevicesDiscovery() async {
-    final List list = await (_channel.invokeMethod('startDevicesDiscovery'));
-    return list.map((map) => BluetoothDevice.fromMap(map)).toList();
+  Stream<List<BluetoothDevice>> startDevicesDiscovery() {
+    Stream<List<BluetoothDevice>> discoveryStream =
+        _deviceDiscoveryChannel.receiveBroadcastStream().map((deviceListData) {
+      List<dynamic> blDevicesMaps = deviceListData as List<dynamic>;
+      List<BluetoothDevice> blDevices = blDevicesMaps
+          .map((blDeviceMap) => BluetoothDevice.fromMap(blDeviceMap))
+          .toList(growable: false);
+      return blDevices;
+    });
+
+    //start discovery
+    Future.delayed(Duration(milliseconds: 500), () {
+      _channel.invokeMethod('startDevicesDiscovery');
+    });
+
+    return discoveryStream;
   }
 
   ///isDeviceConnected(BluetoothDevice device)
@@ -193,4 +209,18 @@ class BluetoothDevice {
 
   @override
   int get hashCode => address.hashCode;
+}
+
+class DiscoveryErrorType {
+  final String type;
+
+  const DiscoveryErrorType._({required this.type});
+
+  static const Failed = DiscoveryErrorType._(type: "failed");
+
+  static const PermissionFailed =
+      DiscoveryErrorType._(type: "permissionFailed");
+
+  static const LocationDisabled =
+      DiscoveryErrorType._(type: "locationDisabled");
 }
