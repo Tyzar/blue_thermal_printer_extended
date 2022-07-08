@@ -136,7 +136,6 @@ public class BluetoothDiscoveryManager {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                stopDiscovery();
                 final List<BluetoothDevice> resultCopy = new ArrayList<>(discoveredDevices);
                 callback.onDiscoveryFinish(BlDiscoveryResult.Success(resultCopy));
                 discoveredDevices.clear();//clear discovered devices
