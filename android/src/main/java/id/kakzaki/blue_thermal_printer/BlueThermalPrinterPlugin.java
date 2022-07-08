@@ -485,9 +485,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                     deviceData.put("type", device.getType());
                     resultList.add(deviceData);
                 }
-                dscvStreamHandler.getEventSink().success(resultList);
             }
-            dscvStreamHandler.getEventSink().endOfStream();
+            dscvStreamHandler.getEventSink().success(resultList);
         } else {
             dscvStreamHandler.getEventSink().error(discoveryResult.status, discoveryResult.errMsg, null);
         }
