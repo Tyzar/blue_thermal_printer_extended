@@ -60,13 +60,12 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     private static final String NAMESPACE = "blue_thermal_printer";
     private static final int REQUEST_COARSE_LOCATION_PERMISSIONS = 1451;
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    private static ConnectedThread THREAD = null;
+    private static ConnectedThread connectionThread = null;
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothDiscoveryManager blDscvMgr;
 
     private Result pendingResult;
 
-    private EventSink readSink;
     private EventSink statusSink;
     private DeviceDiscoveryStreamHandler dscvStreamHandler;
 
@@ -136,8 +135,6 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             discoveryChannel = new EventChannel(messenger, NAMESPACE + "/discovery");
             dscvStreamHandler = new DeviceDiscoveryStreamHandler();
             discoveryChannel.setStreamHandler(dscvStreamHandler);
-            EventChannel readChannel = new EventChannel(messenger, NAMESPACE + "/read");
-            readChannel.setStreamHandler(readResultsHandler);
             mBluetoothManager = (BluetoothManager) application.getSystemService(Context.BLUETOOTH_SERVICE);
             mBluetoothAdapter = mBluetoothManager.getAdapter();
             blDscvMgr = new BluetoothDiscoveryManager(activity, mBluetoothAdapter, this);
@@ -218,7 +215,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                 break;
 
             case "isConnected":
-                result.success(THREAD != null);
+                result.success(connectionThread != null);
                 break;
 
             case "isDeviceConnected":
@@ -289,7 +286,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                 break;
 
             case "disconnect":
-                disconnect(result);
+                actionDisconnect(result);
                 break;
 
             case "write":
@@ -507,7 +504,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                     return;
                 }
 
-                if (THREAD != null && device.ACTION_ACL_CONNECTED.equals(new Intent(BluetoothDevice.ACTION_ACL_CONNECTED).getAction())) {
+                if (connectionThread != null && device.ACTION_ACL_CONNECTED.equals(new Intent(BluetoothDevice.ACTION_ACL_CONNECTED).getAction())) {
                     result.success(true);
                 } else {
                     result.success(false);
@@ -533,7 +530,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
      */
     private void connect(Result result, String address) {
 
-        if (THREAD != null) {
+        if (connectionThread != null) {
             result.error("connect_error", "already connected", null);
             return;
         }
@@ -553,13 +550,13 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                     return;
                 }
 
-                // Cancel bt discovery, even though we didn't start it
-                mBluetoothAdapter.cancelDiscovery();
+                // Cancel bt discovery if running
+                blDscvMgr.stopDiscovery();
 
                 try {
                     socket.connect();
-                    THREAD = new ConnectedThread(socket);
-                    THREAD.start();
+                    connectionThread = new ConnectedThread(socket);
+                    connectionThread.start();
                     result.success(true);
                 } catch (Exception ex) {
                     Log.e(TAG, ex.getMessage(), ex);
@@ -572,25 +569,31 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         });
     }
 
+    private void disconnect() {
+        if (connectionThread == null) {
+            return;
+        }
+
+        connectionThread.cancel();
+        connectionThread = null;
+    }
+
     /**
      * @param result result
      */
-    private void disconnect(Result result) {
-
-        if (THREAD == null) {
+    private void actionDisconnect(Result result) {
+        if (connectionThread == null) {
             result.error("disconnection_error", "not connected", null);
             return;
         }
-        AsyncTask.execute(() -> {
-            try {
-                THREAD.cancel();
-                THREAD = null;
-                result.success(true);
-            } catch (Exception ex) {
-                Log.e(TAG, ex.getMessage(), ex);
-                result.error("disconnection_error", ex.getMessage(), exceptionToString(ex));
-            }
-        });
+
+        try {
+            disconnect();
+            result.success(true);
+        } catch (Exception ex) {
+            Log.e(TAG, ex.getMessage(), ex);
+            result.error("disconnection_error", ex.getMessage(), exceptionToString(ex));
+        }
     }
 
     /**
@@ -598,13 +601,13 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
      * @param message message
      */
     private void write(Result result, String message) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
 
         try {
-            THREAD.write(message.getBytes());
+            connectionThread.write(message.getBytes());
             result.success(true);
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
@@ -613,13 +616,13 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     }
 
     private void writeBytes(Result result, byte[] message) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
 
         try {
-            THREAD.write(message);
+            connectionThread.write(message);
             result.success(true);
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
@@ -636,7 +639,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         byte[] bb3 = new byte[]{0x1B, 0x21, 0x10}; // 3- bold with large text
         byte[] bb4 = new byte[]{0x1B, 0x21, 0x30}; // 4- strong text
         byte[] bb5 = new byte[]{0x1B, 0x21, 0x50}; // 5- extra strong text
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
@@ -644,44 +647,44 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         try {
             switch (size) {
                 case 0:
-                    THREAD.write(cc);
+                    connectionThread.write(cc);
                     break;
                 case 1:
-                    THREAD.write(bb);
+                    connectionThread.write(bb);
                     break;
                 case 2:
-                    THREAD.write(bb2);
+                    connectionThread.write(bb2);
                     break;
                 case 3:
-                    THREAD.write(bb3);
+                    connectionThread.write(bb3);
                     break;
                 case 4:
-                    THREAD.write(bb4);
+                    connectionThread.write(bb4);
                     break;
                 case 5:
-                    THREAD.write(bb5);
+                    connectionThread.write(bb5);
             }
 
             switch (align) {
                 case 0:
                     // left align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_LEFT);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_LEFT);
                     break;
                 case 1:
                     // center align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
                     break;
                 case 2:
                     // right align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_RIGHT);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_RIGHT);
                     break;
             }
             if (charset != null) {
-                THREAD.write(message.getBytes(charset));
+                connectionThread.write(message.getBytes(charset));
             } else {
-                THREAD.write(message.getBytes());
+                connectionThread.write(message.getBytes());
             }
-            THREAD.write(PrinterCommands.FEED_LINE);
+            connectionThread.write(PrinterCommands.FEED_LINE);
             result.success(true);
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
@@ -696,37 +699,37 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         byte[] bb2 = new byte[]{0x1B, 0x21, 0x20}; // 2- bold with medium text
         byte[] bb3 = new byte[]{0x1B, 0x21, 0x10}; // 3- bold with large text
         byte[] bb4 = new byte[]{0x1B, 0x21, 0x30}; // 4- strong text
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
         try {
             switch (size) {
                 case 0:
-                    THREAD.write(cc);
+                    connectionThread.write(cc);
                     break;
                 case 1:
-                    THREAD.write(bb);
+                    connectionThread.write(bb);
                     break;
                 case 2:
-                    THREAD.write(bb2);
+                    connectionThread.write(bb2);
                     break;
                 case 3:
-                    THREAD.write(bb3);
+                    connectionThread.write(bb3);
                     break;
                 case 4:
-                    THREAD.write(bb4);
+                    connectionThread.write(bb4);
                     break;
             }
-            THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
+            connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
             String line = String.format("%-15s %15s %n", msg1, msg2);
             if (format != null) {
                 line = String.format(format, msg1, msg2);
             }
             if (charset != null) {
-                THREAD.write(line.getBytes(charset));
+                connectionThread.write(line.getBytes(charset));
             } else {
-                THREAD.write(line.getBytes());
+                connectionThread.write(line.getBytes());
             }
             result.success(true);
         } catch (Exception ex) {
@@ -743,37 +746,37 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         byte[] bb2 = new byte[]{0x1B, 0x21, 0x20}; // 2- bold with medium text
         byte[] bb3 = new byte[]{0x1B, 0x21, 0x10}; // 3- bold with large text
         byte[] bb4 = new byte[]{0x1B, 0x21, 0x30}; // 4- strong text
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
         try {
             switch (size) {
                 case 0:
-                    THREAD.write(cc);
+                    connectionThread.write(cc);
                     break;
                 case 1:
-                    THREAD.write(bb);
+                    connectionThread.write(bb);
                     break;
                 case 2:
-                    THREAD.write(bb2);
+                    connectionThread.write(bb2);
                     break;
                 case 3:
-                    THREAD.write(bb3);
+                    connectionThread.write(bb3);
                     break;
                 case 4:
-                    THREAD.write(bb4);
+                    connectionThread.write(bb4);
                     break;
             }
-            THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
+            connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
             String line = String.format("%-10s %10s %10s %n", msg1, msg2, msg3);
             if (format != null) {
                 line = String.format(format, msg1, msg2, msg3);
             }
             if (charset != null) {
-                THREAD.write(line.getBytes(charset));
+                connectionThread.write(line.getBytes(charset));
             } else {
-                THREAD.write(line.getBytes());
+                connectionThread.write(line.getBytes());
             }
             result.success(true);
         } catch (Exception ex) {
@@ -790,37 +793,37 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         byte[] bb2 = new byte[]{0x1B, 0x21, 0x20}; // 2- bold with medium text
         byte[] bb3 = new byte[]{0x1B, 0x21, 0x10}; // 3- bold with large text
         byte[] bb4 = new byte[]{0x1B, 0x21, 0x30}; // 4- strong text
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
         try {
             switch (size) {
                 case 0:
-                    THREAD.write(cc);
+                    connectionThread.write(cc);
                     break;
                 case 1:
-                    THREAD.write(bb);
+                    connectionThread.write(bb);
                     break;
                 case 2:
-                    THREAD.write(bb2);
+                    connectionThread.write(bb2);
                     break;
                 case 3:
-                    THREAD.write(bb3);
+                    connectionThread.write(bb3);
                     break;
                 case 4:
-                    THREAD.write(bb4);
+                    connectionThread.write(bb4);
                     break;
             }
-            THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
+            connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
             String line = String.format("%-8s %7s %7s %7s %n", msg1, msg2, msg3, msg4);
             if (format != null) {
                 line = String.format(format, msg1, msg2, msg3, msg4);
             }
             if (charset != null) {
-                THREAD.write(line.getBytes(charset));
+                connectionThread.write(line.getBytes(charset));
             } else {
-                THREAD.write(line.getBytes());
+                connectionThread.write(line.getBytes());
             }
             result.success(true);
         } catch (Exception ex) {
@@ -831,12 +834,12 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     }
 
     private void printNewLine(Result result) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
         try {
-            THREAD.write(PrinterCommands.FEED_LINE);
+            connectionThread.write(PrinterCommands.FEED_LINE);
             result.success(true);
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
@@ -845,12 +848,12 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     }
 
     private void paperCut(Result result) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
         try {
-            THREAD.write(PrinterCommands.FEED_PAPER_AND_CUT);
+            connectionThread.write(PrinterCommands.FEED_PAPER_AND_CUT);
             result.success(true);
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
@@ -859,7 +862,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     }
 
     private void printImage(Result result, String pathImage) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
@@ -867,8 +870,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             Bitmap bmp = BitmapFactory.decodeFile(pathImage);
             if (bmp != null) {
                 byte[] command = Utils.decodeBitmap(bmp);
-                THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
-                THREAD.write(command);
+                connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
+                connectionThread.write(command);
             } else {
                 Log.e("Print Photo error", "the file isn't exists");
             }
@@ -880,7 +883,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
     }
 
     private void printImageBytes(Result result, byte[] bytes) {
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
@@ -888,8 +891,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
             if (bmp != null) {
                 byte[] command = Utils.decodeBitmap(bmp);
-                THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
-                THREAD.write(command);
+                connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
+                connectionThread.write(command);
             } else {
                 Log.e("Print Photo error", "the file isn't exists");
             }
@@ -902,7 +905,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
 
     private void printQRcode(Result result, String textToQR, int width, int height, int align) {
         MultiFormatWriter multiFormatWriter = new MultiFormatWriter();
-        if (THREAD == null) {
+        if (connectionThread == null) {
             result.error("write_error", "not connected", null);
             return;
         }
@@ -910,15 +913,15 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             switch (align) {
                 case 0:
                     // left align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_LEFT);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_LEFT);
                     break;
                 case 1:
                     // center align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_CENTER);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_CENTER);
                     break;
                 case 2:
                     // right align
-                    THREAD.write(PrinterCommands.ESC_ALIGN_RIGHT);
+                    connectionThread.write(PrinterCommands.ESC_ALIGN_RIGHT);
                     break;
             }
             BitMatrix bitMatrix = multiFormatWriter.encode(textToQR, BarcodeFormat.QR_CODE, width, height);
@@ -926,7 +929,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             Bitmap bmp = barcodeEncoder.createBitmap(bitMatrix);
             if (bmp != null) {
                 byte[] command = Utils.decodeBitmap(bmp);
-                THREAD.write(command);
+                connectionThread.write(command);
             } else {
                 Log.e("Print Photo error", "the file isn't exists");
             }
@@ -937,10 +940,13 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         }
     }
 
-    private class ConnectedThread extends Thread {
+    private static class ConnectedThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final InputStream inputStream;
         private final OutputStream outputStream;
+
+        //run control
+        private volatile boolean isRunning = false;
 
         ConnectedThread(BluetoothSocket socket) {
             mmSocket = socket;
@@ -957,19 +963,13 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
             outputStream = tmpOut;
         }
 
+        @Override
         public void run() {
-            byte[] buffer = new byte[1024];
-            int bytes;
-            while (true) {
-                try {
-                    bytes = inputStream.read(buffer);
-                    readSink.success(new String(buffer, 0, bytes));
-                } catch (NullPointerException e) {
-                    break;
-                } catch (IOException e) {
-                    break;
-                }
+            isRunning = true;
+            while (isRunning) {
+                Log.d("Socket Thread", "Socket thread is listening");
             }
+            Log.d("Socket Thread", "Socket thread is stopped");
         }
 
         public void write(byte[] bytes) {
@@ -981,6 +981,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         }
 
         public void cancel() {
+            isRunning = false;
+
             try {
                 outputStream.flush();
                 outputStream.close();
@@ -1004,15 +1006,14 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                 Log.d(TAG, action);
 
                 if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-                    THREAD = null;
+                    disconnect();
                     statusSink.success(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1));
                 } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
                     statusSink.success(1);
                 } else if (BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED.equals(action)) {
-                    THREAD = null;
                     statusSink.success(2);
                 } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
-                    THREAD = null;
+                    disconnect();
                     statusSink.success(0);
                 }
             }
@@ -1021,32 +1022,18 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
         @Override
         public void onListen(Object o, EventSink eventSink) {
             statusSink = eventSink;
-            context.registerReceiver(mReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+            final IntentFilter intentFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
 
-            context.registerReceiver(mReceiver, new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED));
-
-            context.registerReceiver(mReceiver, new IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED));
-
-            context.registerReceiver(mReceiver, new IntentFilter(BluetoothDevice.ACTION_ACL_DISCONNECTED));
-
+            context.registerReceiver(mReceiver, intentFilter);
         }
 
         @Override
         public void onCancel(Object o) {
             statusSink = null;
             context.unregisterReceiver(mReceiver);
-        }
-    };
-
-    private final StreamHandler readResultsHandler = new StreamHandler() {
-        @Override
-        public void onListen(Object o, EventSink eventSink) {
-            readSink = eventSink;
-        }
-
-        @Override
-        public void onCancel(Object o) {
-            readSink = null;
         }
     };
 }

@@ -53,23 +53,16 @@ public class BluetoothDiscoveryManager {
 
     private void setupReceiver() {
         IntentFilter intentFilter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        context.registerReceiver(blDscvReceiver, intentFilter);
-        intentFilter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        intentFilter.addAction(BluetoothDevice.ACTION_FOUND);
         context.registerReceiver(blDscvReceiver, intentFilter);
     }
 
     private boolean isPermissionGranted() {
-        String[] permissions;
+        String[] permissions = new String[]{};
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions = new String[]{
                     Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-            };
-        } else {
-            permissions = new String[]{
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_FINE_LOCATION
+                    Manifest.permission.BLUETOOTH_CONNECT
             };
         }
 
@@ -99,12 +92,6 @@ public class BluetoothDiscoveryManager {
             return;
         }
 
-        //check location is enabled
-        if (!isLocationEnabled()) {
-            callback.onDiscoveryFinish(BlDiscoveryResult.LocationDisabled("Please enable location"));
-            return;
-        }
-
         if (blAdapter.isDiscovering()) {
             return;
         }
@@ -126,7 +113,8 @@ public class BluetoothDiscoveryManager {
     }
 
     public void stopDiscovery() {
-        blAdapter.cancelDiscovery();
+        if (blAdapter.isDiscovering())
+            blAdapter.cancelDiscovery();
     }
 
     private final BroadcastReceiver blDscvReceiver = new BroadcastReceiver() {

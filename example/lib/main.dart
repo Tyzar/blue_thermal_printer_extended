@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:blue_thermal_printer_example/testprint.dart';
 import 'package:flutter/material.dart';
@@ -42,14 +43,25 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  Future<void> _startDiscovery() async {
+    try {
+      final deviceList = await bluetooth.startDevicesDiscovery().first;
+      setState(() {
+        _devices = deviceList;
+      });
+    } on PlatformException catch(e) {
+      // TODO - Error
+      log('Error discovering devices');
+      if(e.code == "permissionFailed"){
+
+      }
+    }
+  }
+
   Future<void> initPlatformState() async {
     bool isConnected = await bluetooth.isConnected;
-    List<BluetoothDevice> devices = [];
-    try {
-      devices = await bluetooth.getBondedDevices();
-    } on PlatformException {
-      // TODO - Error
-    }
+
+    _startDiscovery();
 
     bluetooth.onStateChanged().listen((state) {
       switch (state) {
@@ -108,9 +120,6 @@ class _MyAppState extends State<MyApp> {
     });
 
     if (!mounted) return;
-    setState(() {
-      _devices = devices;
-    });
 
     if (isConnected) {
       setState(() {
@@ -184,7 +193,7 @@ class _MyAppState extends State<MyApp> {
                         _connected ? 'Disconnect' : 'Connect',
                         style: TextStyle(color: Colors.white),
                       ),
-                    ),
+                    )
                   ],
                 ),
                 Padding(
