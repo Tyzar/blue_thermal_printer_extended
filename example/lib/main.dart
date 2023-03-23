@@ -49,11 +49,11 @@ class _MyAppState extends State<MyApp> {
       setState(() {
         _devices = deviceList;
       });
-    } on PlatformException catch(e) {
+    } on PlatformException catch (e) {
       // TODO - Error
       log('Error discovering devices');
-      if(e.code == "permissionFailed"){
-
+      if (e.code == "permissionFailed") {
+        log('Bluetooth permissions related not granted');
       }
     }
   }

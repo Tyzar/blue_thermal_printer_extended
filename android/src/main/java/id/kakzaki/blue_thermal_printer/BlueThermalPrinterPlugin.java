@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import id.kakzaki.blue_thermal_printer.discovery.BlDiscoveryCallback;
+import id.kakzaki.blue_thermal_printer.discovery.BlDiscoveryResult;
+import id.kakzaki.blue_thermal_printer.discovery.BluetoothDiscoveryManager;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
@@ -54,7 +57,11 @@ import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
 import com.journeyapps.barcodescanner.BarcodeEncoder;
 
-public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, MethodCallHandler, RequestPermissionsResultListener, BlDiscoveryCallback {
+public class BlueThermalPrinterPlugin implements FlutterPlugin
+        , ActivityAware
+        , MethodCallHandler
+        , RequestPermissionsResultListener
+        , BlDiscoveryCallback {
 
     private static final String TAG = "BThermalPrinterPlugin";
     private static final String NAMESPACE = "blue_thermal_printer";
@@ -417,8 +424,20 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin, ActivityAware, M
                 pendingResult.error("no_permissions", "this plugin requires location permissions for scanning", null);
                 pendingResult = null;
             }
-            return true;
-        } else return requestCode == BluetoothDiscoveryManager.REQ_BL_PERMISSIONS;
+        } else if (requestCode == BluetoothDiscoveryManager.REQ_BL_PERMISSIONS) {
+            boolean allGranted = true;
+            for (int result : grantResults) {
+                if (PackageManager.PERMISSION_DENIED == result) {
+                    allGranted = false;
+                    break;
+                }
+            }
+            if (allGranted) {
+                blDscvMgr.startDiscovery();
+            }
+        }
+
+        return true;
     }
 
     private void state(Result result) {

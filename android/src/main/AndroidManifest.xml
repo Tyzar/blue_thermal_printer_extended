@@ -2,15 +2,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="id.kakzaki.blue_thermal_printer">
 
-    <!-- Request legacy Bluetooth permissions on older devices. -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
+    <!-- Request legacy Bluetooth permissions on older devices.
+    Except Xiaomi MIUI still need android.permission.BLUETOOTH, so make it available in sdk > 30 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="30" />
 
     <!-- Needed only if your app looks for Bluetooth devices.
          You must add an attribute to this permission, or declare the

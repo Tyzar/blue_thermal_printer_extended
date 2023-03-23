@@ -1,4 +1,4 @@
-package id.kakzaki.blue_thermal_printer;
+package id.kakzaki.blue_thermal_printer.discovery;
 
 import android.Manifest;
 import android.app.Activity;
@@ -57,15 +57,7 @@ public class BluetoothDiscoveryManager {
         context.registerReceiver(blDscvReceiver, intentFilter);
     }
 
-    private boolean isPermissionGranted() {
-        String[] permissions = new String[]{};
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions = new String[]{
-                    Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_CONNECT
-            };
-        }
-
+    private boolean isPermissionGranted(String[] permissions) {
         for (String perm : permissions) {
             if (PackageManager.PERMISSION_DENIED == ContextCompat.checkSelfPermission(context, perm)) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -87,9 +79,22 @@ public class BluetoothDiscoveryManager {
         }
 
         //check perms
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isPermissionGranted()) {
-            callback.onDiscoveryFinish(BlDiscoveryResult.PermissionError("Permission error"));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final String[] permissions = new String[]{
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT
+            };
+            if (!isPermissionGranted(permissions)) {
+                callback.onDiscoveryFinish(BlDiscoveryResult.PermissionError("Permission error"));
+            }
             return;
+        } else {
+            final String[] permissions = new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            };
+            if (!isPermissionGranted(permissions)) {
+                callback.onDiscoveryFinish(BlDiscoveryResult.PermissionError("Permission error"));
+            }
         }
 
         if (blAdapter.isDiscovering()) {
@@ -144,46 +149,4 @@ public class BluetoothDiscoveryManager {
         }
     };
 
-}
-
-interface BlDiscoveryCallback {
-    void onDiscoveryFinish(BlDiscoveryResult result);
-}
-
-class BlDiscoveryResult {
-    public static final String success = "success";
-    public static final String failed = "failed";
-    public static final String locationDisabled = "locationDisabled";
-    public static final String permissionFailed = "permissionFailed";
-
-    @NonNull
-    public final String status;
-    @Nullable
-    public final List<BluetoothDevice> deviceList;
-    @Nullable
-    public final String errMsg;
-
-    private BlDiscoveryResult(@NonNull String status
-            , @Nullable List<BluetoothDevice> deviceList
-            , @Nullable String errMsg) {
-        this.status = status;
-        this.deviceList = deviceList;
-        this.errMsg = errMsg;
-    }
-
-    public static BlDiscoveryResult Success(@NonNull List<BluetoothDevice> deviceList) {
-        return new BlDiscoveryResult(BlDiscoveryResult.success, deviceList, null);
-    }
-
-    public static BlDiscoveryResult Failed(@NonNull String errMsg) {
-        return new BlDiscoveryResult(BlDiscoveryResult.failed, null, errMsg);
-    }
-
-    public static BlDiscoveryResult LocationDisabled(@NonNull String errMsg) {
-        return new BlDiscoveryResult(BlDiscoveryResult.locationDisabled, null, errMsg);
-    }
-
-    public static BlDiscoveryResult PermissionError(@Nullable String errMsg) {
-        return new BlDiscoveryResult(BlDiscoveryResult.permissionFailed, null, errMsg);
-    }
 }
