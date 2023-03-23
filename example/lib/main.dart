@@ -52,8 +52,10 @@ class _MyAppState extends State<MyApp> {
     } on PlatformException catch (e) {
       // TODO - Error
       log('Error discovering devices');
-      if (e.code == "permissionFailed") {
+      if (e.code == DiscoveryErrorType.Failed.type) {
         log('Bluetooth permissions related not granted');
+      } else if (e.code == DiscoveryErrorType.LocationDisabled.type) {
+        log('Location need enabled for android 11 below');
       }
     }
   }

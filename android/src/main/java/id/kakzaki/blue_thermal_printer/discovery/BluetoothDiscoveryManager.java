@@ -97,6 +97,12 @@ public class BluetoothDiscoveryManager {
             }
         }
 
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && !isLocationEnabled()) {
+            callback.onDiscoveryFinish(BlDiscoveryResult
+                    .LocationDisabled("Location need to be enabled to scan nearby devices"));
+            return;
+        }
+
         if (blAdapter.isDiscovering()) {
             return;
         }
