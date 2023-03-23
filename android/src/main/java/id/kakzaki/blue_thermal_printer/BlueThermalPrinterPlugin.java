@@ -231,9 +231,6 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
                 break;
 
             case "isConnected":
-                if (connectionThread != null) {
-                    Log.d("CONNECT_THREAD", "Connect thread is running");
-                }
                 result.success(connectionThread != null);
                 break;
 
@@ -608,7 +605,6 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
 
         connectionThread.cancel();
         connectionThread = null;
-        Log.d("CONNECT_THREAD", "Connection thread is not running");
     }
 
     /**
@@ -982,20 +978,20 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
 
             if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
                 disconnect();
-                if(statusSink != null){
+                if (statusSink != null) {
                     statusSink.success(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1));
                 }
             } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
-                if(statusSink != null) {
+                if (statusSink != null) {
                     statusSink.success(1);
                 }
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED.equals(action)) {
-                if(statusSink != null) {
+                if (statusSink != null) {
                     statusSink.success(2);
                 }
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
                 disconnect();
-                if(statusSink != null) {
+                if (statusSink != null) {
                     statusSink.success(0);
                 }
             }
