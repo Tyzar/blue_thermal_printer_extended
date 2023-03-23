@@ -220,6 +220,9 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
                 break;
 
             case "isConnected":
+                if (connectionThread != null) {
+                    Log.d("CONNECT_THREAD", "Connect thread is running");
+                }
                 result.success(connectionThread != null);
                 break;
 
@@ -594,6 +597,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
 
         connectionThread.cancel();
         connectionThread = null;
+        Log.d("CONNECT_THREAD", "Connection thread is not running");
     }
 
     /**

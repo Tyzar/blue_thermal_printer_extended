@@ -18,10 +18,10 @@ class _MyAppState extends State<MyApp> {
   BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
 
   List<BluetoothDevice> _devices = [];
-  BluetoothDevice _device;
+  BluetoothDevice? _device;
   bool _connected = false;
-  String pathImage;
-  TestPrint testPrint;
+  String? pathImage;
+  late TestPrint testPrint;
 
   @override
   void initState() {
@@ -61,7 +61,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> initPlatformState() async {
-    bool isConnected = await bluetooth.isConnected;
+    bool isConnected = await bluetooth.isConnected ?? false;
 
     _startDiscovery();
 
@@ -159,7 +159,7 @@ class _MyAppState extends State<MyApp> {
                       width: 30,
                     ),
                     Expanded(
-                      child: DropdownButton(
+                      child: DropdownButton<BluetoothDevice>(
                         items: _getDeviceItems(),
                         onChanged: (value) => setState(() => _device = value),
                         value: _device,
@@ -204,7 +204,7 @@ class _MyAppState extends State<MyApp> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(primary: Colors.brown),
                     onPressed: () {
-                      testPrint.sample(pathImage);
+                      testPrint.sample(pathImage ?? '');
                     },
                     child: Text('PRINT TEST',
                         style: TextStyle(color: Colors.white)),
@@ -227,7 +227,7 @@ class _MyAppState extends State<MyApp> {
     } else {
       _devices.forEach((device) {
         items.add(DropdownMenuItem(
-          child: Text(device.name),
+          child: Text(device.name ?? ''),
           value: device,
         ));
       });
@@ -240,8 +240,8 @@ class _MyAppState extends State<MyApp> {
       show('No device selected.');
     } else {
       bluetooth.isConnected.then((isConnected) {
-        if (!isConnected) {
-          bluetooth.connect(_device).catchError((error) {
+        if (isConnected == null || !isConnected) {
+          bluetooth.connect(_device!).catchError((error) {
             setState(() => _connected = false);
           });
           setState(() => _connected = true);
