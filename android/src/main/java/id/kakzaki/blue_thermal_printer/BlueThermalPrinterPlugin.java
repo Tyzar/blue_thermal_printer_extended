@@ -136,6 +136,15 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
             channel = new MethodChannel(messenger, NAMESPACE + "/methods");
             channel.setMethodCallHandler(this);
             stateChannel = new EventChannel(messenger, NAMESPACE + "/state");
+
+            //immediately listen bluetooth state here
+            final IntentFilter intentFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
+            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+
+            context.registerReceiver(mReceiver, intentFilter);
+
             stateChannel.setStreamHandler(stateStreamHandler);
             discoveryChannel = new EventChannel(messenger, NAMESPACE + "/discovery");
             dscvStreamHandler = new DeviceDiscoveryStreamHandler();
@@ -150,6 +159,8 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
 
     private void detach() {
         Log.i(TAG, "detach");
+        context.unregisterReceiver(mReceiver);
+
         blDscvMgr.dispose();
         blDscvMgr = null;
         context = null;
@@ -962,44 +973,44 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
         }
     }
 
-    private final StreamHandler stateStreamHandler = new StreamHandler() {
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
 
-        private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                final String action = intent.getAction();
+            Log.d(TAG, action);
 
-                Log.d(TAG, action);
-
-                if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-                    disconnect();
+            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                disconnect();
+                if(statusSink != null){
                     statusSink.success(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1));
-                } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
+                }
+            } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
+                if(statusSink != null) {
                     statusSink.success(1);
-                } else if (BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED.equals(action)) {
+                }
+            } else if (BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED.equals(action)) {
+                if(statusSink != null) {
                     statusSink.success(2);
-                } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
-                    disconnect();
+                }
+            } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
+                disconnect();
+                if(statusSink != null) {
                     statusSink.success(0);
                 }
             }
-        };
+        }
+    };
 
+    private final StreamHandler stateStreamHandler = new StreamHandler() {
         @Override
         public void onListen(Object o, EventSink eventSink) {
             statusSink = eventSink;
-            final IntentFilter intentFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-            intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
-            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
-            intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
-
-            context.registerReceiver(mReceiver, intentFilter);
         }
 
         @Override
         public void onCancel(Object o) {
             statusSink = null;
-            context.unregisterReceiver(mReceiver);
         }
     };
 }
