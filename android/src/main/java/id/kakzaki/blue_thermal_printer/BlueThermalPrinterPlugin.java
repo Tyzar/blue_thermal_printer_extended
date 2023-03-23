@@ -25,9 +25,6 @@ import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -39,6 +36,7 @@ import java.util.UUID;
 import id.kakzaki.blue_thermal_printer.discovery.BlDiscoveryCallback;
 import id.kakzaki.blue_thermal_printer.discovery.BlDiscoveryResult;
 import id.kakzaki.blue_thermal_printer.discovery.BluetoothDiscoveryManager;
+import id.kakzaki.blue_thermal_printer.socket_thread.SocketThread;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
@@ -67,7 +65,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
     private static final String NAMESPACE = "blue_thermal_printer";
     private static final int REQUEST_COARSE_LOCATION_PERMISSIONS = 1451;
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    private static ConnectedThread connectionThread = null;
+    private SocketThread connectionThread = null;
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothDiscoveryManager blDscvMgr;
 
@@ -553,6 +551,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
             result.error("connect_error", "already connected", null);
             return;
         }
+
         AsyncTask.execute(() -> {
             try {
                 BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
@@ -574,7 +573,7 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
 
                 try {
                     socket.connect();
-                    connectionThread = new ConnectedThread(socket);
+                    connectionThread = new SocketThread(socket);
                     connectionThread.start();
                     result.success(true);
                 } catch (Exception ex) {
@@ -956,62 +955,6 @@ public class BlueThermalPrinterPlugin implements FlutterPlugin
         } catch (Exception ex) {
             Log.e(TAG, ex.getMessage(), ex);
             result.error("write_error", ex.getMessage(), exceptionToString(ex));
-        }
-    }
-
-    private static class ConnectedThread extends Thread {
-        private final BluetoothSocket mmSocket;
-        private final InputStream inputStream;
-        private final OutputStream outputStream;
-
-        //run control
-        private volatile boolean isRunning = false;
-
-        ConnectedThread(BluetoothSocket socket) {
-            mmSocket = socket;
-            InputStream tmpIn = null;
-            OutputStream tmpOut = null;
-
-            try {
-                tmpIn = socket.getInputStream();
-                tmpOut = socket.getOutputStream();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            inputStream = tmpIn;
-            outputStream = tmpOut;
-        }
-
-        @Override
-        public void run() {
-            isRunning = true;
-            while (isRunning) {
-                Log.d("Socket Thread", "Socket thread is listening");
-            }
-            Log.d("Socket Thread", "Socket thread is stopped");
-        }
-
-        public void write(byte[] bytes) {
-            try {
-                outputStream.write(bytes);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        public void cancel() {
-            isRunning = false;
-
-            try {
-                outputStream.flush();
-                outputStream.close();
-
-                inputStream.close();
-
-                mmSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 
