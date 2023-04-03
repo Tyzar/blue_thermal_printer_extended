@@ -13,7 +13,6 @@ import android.location.LocationManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
@@ -86,14 +85,16 @@ public class BluetoothDiscoveryManager {
             };
             if (!isPermissionGranted(permissions)) {
                 callback.onDiscoveryFinish(BlDiscoveryResult.PermissionError("Permission error"));
+                return;
             }
-            return;
         } else {
             final String[] permissions = new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION
             };
             if (!isPermissionGranted(permissions)) {
                 callback.onDiscoveryFinish(BlDiscoveryResult.PermissionError("Permission error"));
+                return;
             }
         }
 
