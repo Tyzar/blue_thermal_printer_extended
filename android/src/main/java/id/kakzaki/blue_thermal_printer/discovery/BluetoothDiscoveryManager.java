@@ -45,9 +45,7 @@ public class BluetoothDiscoveryManager {
         isDisposed = true;
 
         context.unregisterReceiver(blDscvReceiver);
-        if (blAdapter.isDiscovering()) {
-            blAdapter.cancelDiscovery();
-        }
+        stopDiscovery();
     }
 
     private void setupReceiver() {
@@ -125,6 +123,17 @@ public class BluetoothDiscoveryManager {
     }
 
     public void stopDiscovery() {
+        //If android 31, do check if bluetooth scan permission granted
+        // before perform bluetooth discovering related action
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final String[] permissions = new String[]{
+                    Manifest.permission.BLUETOOTH_SCAN
+            };
+            if (!isPermissionGranted(permissions)) {
+                return;//do nothing
+            }
+        }
+
         if (blAdapter.isDiscovering())
             blAdapter.cancelDiscovery();
     }
